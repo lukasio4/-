@@ -14,13 +14,18 @@ async def start(update: Update, context):
     await update.message.reply_text("Привіт! Я твій бот!")
 
 # API маршрут для вебхука
+import asyncio
+
 @app.route("/webhook", methods=["POST"])
 def webhook():
     if not request.is_json:
-        return "Invalid request", 400  # Якщо не JSON - помилка
-    
+        return "Invalid request", 400
+
     update = Update.de_json(request.get_json(), bot)
-    application.process_update(update)
+
+    # Правильний спосіб виклику асинхронної функції
+    asyncio.run(application.process_update(update))
+    
     return "ok", 200
 
 # Налаштування Telegram-бота
