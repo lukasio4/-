@@ -37,5 +37,8 @@ application = ApplicationBuilder().token(TOKEN).build()
 application.add_handler(CommandHandler("start", start))
 
 # Запуск Flask-сервера
+import os
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8443)
+    port = int(os.environ.get("PORT", 10000))  # Визначення порту
+    app.run(host="0.0.0.0", port=port)
