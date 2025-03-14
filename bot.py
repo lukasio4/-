@@ -10,13 +10,13 @@ TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 app = Flask(__name__)
 bot = Bot(token=TOKEN)
 
-# Налаштування Telegram-бота (ЦЕ ВАЖЛИВО!)
-application = ApplicationBuilder().token(TOKEN).build()
-application.add_handler(CommandHandler("start", start))
-
 # Функція для обробки команди /start
 async def start(update: Update, context):
     await update.message.reply_text("Привіт! Я твій бот!")
+
+# Налаштування Telegram-бота (ТЕПЕР start ВЖЕ Є)
+application = ApplicationBuilder().token(TOKEN).build()
+application.add_handler(CommandHandler("start", start))
 
 # API маршрут для вебхука
 @app.route("/webhook", methods=["POST"])
