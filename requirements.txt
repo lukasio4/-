@@ -47,3 +47,5 @@ websockets==15.0.1
 wheel==0.45.1
 yarl==1.18.3
 python-telegram-bot
+flask
+
