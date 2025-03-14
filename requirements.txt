@@ -48,4 +48,4 @@ wheel==0.45.1
 yarl==1.18.3
 python-telegram-bot
 flask
-
+gunicorn
