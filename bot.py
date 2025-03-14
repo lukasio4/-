@@ -5,11 +5,11 @@ from flask import Flask, request
 from telegram import Update, Bot
 from telegram.ext import Application, CommandHandler
 
-# Включаємо логування
+# Налаштування логування
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Отримуємо токен з середовища
+# Отримання токену з середовища
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 if not TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN не задано в середовищі!")
@@ -28,14 +28,13 @@ async def start(update: Update, context):
 # Додаємо команду /start
 application.add_handler(CommandHandler("start", start))
 
-# Ініціалізація додатку перед запуском
-async def init_application():
-    await application.initialize()
-    await application.start()
-    logger.info("Бот запущено!")
+# Функція запуску бота у фоновому потоці
+def run_application():
+    asyncio.run(application.run_polling())
 
-# Запускаємо ініціалізацію асинхронно
-asyncio.run(init_application())
+# Запускаємо потік для Telegram
+import threading
+threading.Thread(target=run_application, daemon=True).start()
 
 # Webhook маршрут
 @app.route("/webhook", methods=["POST"])
@@ -48,7 +47,7 @@ async def webhook():
         logger.error(f"Помилка обробки webhook: {e}")
         return "error", 500
 
-# Запускаємо Flask
+# Запуск Flask
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8443))
     app.run(host="0.0.0.0", port=port)
