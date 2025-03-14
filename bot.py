@@ -14,11 +14,14 @@ async def start(update: Update, context):
     await update.message.reply_text("Привіт! Я твій бот!")
 
 # API маршрут для вебхука
-@app.route(f"/{TOKEN}", methods=["POST"])
+@app.route("/webhook", methods=["POST"])
 def webhook():
+    if not request.is_json:
+        return "Invalid request", 400  # Якщо не JSON - помилка
+    
     update = Update.de_json(request.get_json(), bot)
     application.process_update(update)
-    return "ok"
+    return "ok", 200
 
 # Налаштування Telegram-бота
 application = ApplicationBuilder().token(TOKEN).build()
