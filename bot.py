@@ -1,48 +1,52 @@
 import os
-import asyncio
 import logging
+import asyncio
 from flask import Flask, request
 from telegram import Update, Bot
 from telegram.ext import Application, CommandHandler
 
-# Налаштовуємо логування для відстеження помилок
-logging.basicConfig(level=logging.INFO)
-
-# Отримуємо токен із середовища
+# Отримуємо токен із змінних середовища
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+if not TOKEN:
+    raise ValueError("TELEGRAM_BOT_TOKEN не знайдено у змінних середовища!")
 
-# Ініціалізуємо Flask додаток та Telegram Bot
+# Ініціалізація Flask
 app = Flask(__name__)
-bot = Bot(token=TOKEN)
 
-# Функція, яка обробляє команду /start
+# Ініціалізація Telegram бота
+bot = Bot(token=TOKEN)
+application = Application.builder().token(TOKEN).build()
+
+# Логування
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
+
+# Функція для команди /start
 async def start(update: Update, context):
     await update.message.reply_text("Привіт! Я твій бот!")
 
-# Ініціалізуємо додаток Telegram Bot API
-application = Application.builder().token(TOKEN).build()
+# Додаємо команду в хендлери
 application.add_handler(CommandHandler("start", start))
 
-# Ініціалізація Telegram-бота
-async def init_application():
+# Ініціалізація та запуск бота
+async def run_bot():
     await application.initialize()
     await application.start()
-    await application.updater.start_polling()
+    logging.info("Bot started!")
 
-# Стартуємо асинхронний запуск ініціалізації
-asyncio.run(init_application())
+# Запускаємо асинхронний процес Telegram бота перед обробкою оновлень
+@app.before_first_request
+def activate_bot():
+    asyncio.create_task(run_bot())
 
+# Вебхук для обробки оновлень
 @app.route("/webhook", methods=["POST"])
 async def webhook():
-    """Функція Webhook, яка приймає запити від Telegram"""
-    try:
-        data = request.get_json()
-        update = Update.de_json(data, bot)
-        await application.process_update(update)
-        return "ok", 200
-    except Exception as e:
-        logging.error(f"Помилка у webhook: {e}")
-        return "error", 500
+    data = request.get_json()
+    update = Update.de_json(data, bot)
+    await application.process_update(update)
+    return "ok", 200
 
 # Запуск Flask-сервера
 if __name__ == "__main__":
