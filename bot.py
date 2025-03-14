@@ -23,10 +23,14 @@ def webhook():
 
     update = Update.de_json(request.get_json(), bot)
 
-    # Правильний спосіб виклику асинхронної функції
+    # Ініціалізація додатку перед обробкою оновлення
+    asyncio.run(application.initialize())
+
+    # Обробка оновлення Telegram
     asyncio.run(application.process_update(update))
-    
+
     return "ok", 200
+
 
 # Налаштування Telegram-бота
 application = ApplicationBuilder().token(TOKEN).build()
