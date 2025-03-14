@@ -11,7 +11,9 @@ TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 app = Flask(__name__)
 
 # Ініціалізація Telegram-бота
-application = ApplicationBuilder().token(TOKEN).build()
+apapplication = ApplicationBuilder().token(TOKEN).build()
+application.initialize()  # Додаємо цю строку!
+application.add_handler(CommandHandler("start", start))
 
 # Функція для обробки команди /start
 async def start(update: Update, context):
