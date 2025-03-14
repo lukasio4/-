@@ -13,8 +13,18 @@ bot = Bot(token=TOKEN)
 async def start(update: Update, context):
     await update.message.reply_text("Привіт! Я твій бот!")
 
+# Створюємо додаток Telegram
 application = ApplicationBuilder().token(TOKEN).build()
 application.add_handler(CommandHandler("start", start))
+
+# ІНІЦІАЛІЗУЄМО додаток перед обробкою оновлень
+async def init_application():
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling()
+
+# Виконуємо ініціалізацію в окремому потоці
+threading.Thread(target=lambda: asyncio.run(init_application())).start()
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
