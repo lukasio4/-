@@ -6,7 +6,7 @@ from aiogram.types import Message
 from aiogram.filters import Command
 from fastapi import FastAPI
 import uvicorn
-from elevenlabs.client import ElevenLabs
+from elevenlabs import ElevenLabs
 
 # Завантажуємо змінні середовища (API-ключі)
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -20,7 +20,7 @@ app = FastAPI()
 def generate_voice(text):
     try:
         elevenlabs_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
-        audio = elevenlabs_client.text_to_speech.generate(text=text, voice="Maple")
+        audio = elevenlabs_client.text_to_speech.convert(text=text, voice="Bella")
 
         audio_path = "response.mp3"
         with open(audio_path, "wb") as f:
@@ -34,8 +34,14 @@ def generate_voice(text):
 
 @app.post("/webhook")
 async def webhook(update: dict):
-    telegram_update = types.Update(**update)
-    await dp.feed_update(bot, telegram_update)
+    try:
+        telegram_update = types.Update(**update)
+        await dp.feed_update(bot, telegram_update)
+        print("[LOG] Webhook отримав оновлення:", update)
+        return {"status": "ok"}
+    except Exception as e:
+        print(f"[ERROR] Webhook помилка: {e}")
+        return {"status": "error"}
 
 @dp.message(Command("start"))
 async def start_command(message: Message):
