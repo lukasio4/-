@@ -1,53 +1,31 @@
 import os
-import asyncio
 import logging
-from flask import Flask, request
-from telegram import Update, Bot
-from telegram.ext import Application, CommandHandler
+import asyncio
+from aiogram import Bot, Dispatcher, types
+from aiogram.types import Message
+from aiogram.filters import Command
+from fastapi import FastAPI
+import uvicorn
 
-# Налаштування логування
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+WEBHOOK_URL = f"https://fenix-bot-3w3i.onrender.com/webhook"
 
-# Отримання токену з середовища
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-if not TOKEN:
-    raise ValueError("TELEGRAM_BOT_TOKEN не задано в середовищі!")
+bot = Bot(token=TELEGRAM_BOT_TOKEN)
+dp = Dispatcher()
+app = FastAPI()
 
-# Ініціалізація Flask
-app = Flask(__name__)
+@app.post("/webhook")
+async def webhook(update: dict):
+    telegram_update = types.Update(**update)
+    await dp.feed_update(bot, telegram_update)
 
-# Ініціалізація бота
-bot = Bot(token=TOKEN)
-application = Application.builder().token(TOKEN).build()
+@dp.message(Command("start"))
+async def start_command(message: Message):
+    await message.answer("🔥 Привіт! Надішли мені голосове повідомлення, і я відповім голосом!")
 
-# Обробник команди /start
-async def start(update: Update, context):
-    await update.message.reply_text("Привіт! Я твій бот!")
+async def main():
+    await bot.set_webhook(WEBHOOK_URL)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 
-# Додаємо команду /start
-application.add_handler(CommandHandler("start", start))
-
-# Функція запуску бота у фоновому потоці
-def run_application():
-    asyncio.run(application.run_polling())
-
-# Запускаємо потік для Telegram
-import threading
-threading.Thread(target=run_application, daemon=True).start()
-
-# Webhook маршрут
-@app.route("/webhook", methods=["POST"])
-async def webhook():
-    try:
-        update = Update.de_json(request.get_json(), bot)
-        await application.process_update(update)
-        return "ok", 200
-    except Exception as e:
-        logger.error(f"Помилка обробки webhook: {e}")
-        return "error", 500
-
-# Запуск Flask
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8443))
-    app.run(host="0.0.0.0", port=port)
+    asyncio.run(main())
