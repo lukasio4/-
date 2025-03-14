@@ -7,28 +7,26 @@ from telegram.ext import ApplicationBuilder, CommandHandler
 # Отримуємо токен
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-# Ініціалізація Flask
-app = Flask(__name__)
-
 # Ініціалізація бота
+app = Flask(__name__)
 bot = Bot(token=TOKEN)
 
-# **Створюємо Application перед викликом initialize**
-application = ApplicationBuilder().token(TOKEN).build()
-application.initialize()  # Викликаємо після створення application
-application.add_handler(CommandHandler("start", start))
-
-# Обробка команди /start
+# **Функція для обробки команди /start**
 async def start(update: Update, context):
     await update.message.reply_text("Привіт! Я твій бот!")
 
-# **API маршрут для вебхука**
+# **Коректна ініціалізація application**
+application = ApplicationBuilder().token(TOKEN).build()
+application.initialize()  # Виправляємо помилку з логів
+application.add_handler(CommandHandler("start", start))  # Тепер 'start' точно існує
+
+# API маршрут для вебхука (асинхронний)
 @app.route("/webhook", methods=["POST"])
-async def webhook():
+def webhook():
     update = Update.de_json(request.get_json(), bot)
-    await application.process_update(update)
+    asyncio.create_task(application.process_update(update))  # Асинхронний виклик
     return "ok", 200
 
-# Запуск сервера Flask
+# Запуск Flask-сервера
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8443)
