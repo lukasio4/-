@@ -1,41 +1,50 @@
 import os
 import asyncio
-import threading
+import logging
 from flask import Flask, request
 from telegram import Update, Bot
-from telegram.ext import Application, ApplicationBuilder, CommandHandler
+from telegram.ext import Application, CommandHandler
 
-# Отримуємо токен
+# Налаштовуємо логування для відстеження помилок
+logging.basicConfig(level=logging.INFO)
+
+# Отримуємо токен із середовища
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-# Ініціалізація Flask
+# Ініціалізуємо Flask додаток та Telegram Bot
 app = Flask(__name__)
 bot = Bot(token=TOKEN)
 
-# Функція для обробки команди /start
+# Функція, яка обробляє команду /start
 async def start(update: Update, context):
     await update.message.reply_text("Привіт! Я твій бот!")
 
-# Створюємо додаток Telegram
-application = ApplicationBuilder().token(TOKEN).build()
+# Ініціалізуємо додаток Telegram Bot API
+application = Application.builder().token(TOKEN).build()
 application.add_handler(CommandHandler("start", start))
 
-# Ініціалізація додатку Telegram
+# Ініціалізація Telegram-бота
 async def init_application():
     await application.initialize()
     await application.start()
+    await application.updater.start_polling()
 
-# Запускаємо Telegram бот у фоні
-threading.Thread(target=lambda: asyncio.run(init_application()), daemon=True).start()
+# Стартуємо асинхронний запуск ініціалізації
+asyncio.run(init_application())
 
-# Flask-ендпоінт для вебхука
 @app.route("/webhook", methods=["POST"])
 async def webhook():
-    update = Update.de_json(request.get_json(), bot)
-    await application.process_update(update)
-    return "ok", 200
+    """Функція Webhook, яка приймає запити від Telegram"""
+    try:
+        data = request.get_json()
+        update = Update.de_json(data, bot)
+        await application.process_update(update)
+        return "ok", 200
+    except Exception as e:
+        logging.error(f"Помилка у webhook: {e}")
+        return "error", 500
 
-# Запуск сервера Flask
+# Запуск Flask-сервера
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8443))
     app.run(host="0.0.0.0", port=port)
