@@ -20,7 +20,7 @@ app = FastAPI()
 def generate_voice(text):
     try:
         elevenlabs_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
-        audio = elevenlabs_client.generate(text=text, voice="Bella")
+        audio = elevenlabs_client.generate(text=text, voice="Rachel")  # Використовуємо жіночий голос
 
         audio_path = "response.mp3"
         with open(audio_path, "wb") as f:
