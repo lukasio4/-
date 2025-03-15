@@ -1,12 +1,12 @@
 import os
 import logging
 import asyncio
+import requests
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import Message
 from aiogram.filters import Command
 from fastapi import FastAPI
 import uvicorn
-from elevenlabs import ElevenLabs
 
 # Завантажуємо змінні середовища (API-ключі)
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -17,17 +17,33 @@ bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
 app = FastAPI()
 
+# Перевіряємо, чи API-ключ доступний
+print("[DEBUG] ELEVENLABS_API_KEY =", ELEVENLABS_API_KEY)
+
 def generate_voice(text):
     try:
-        elevenlabs_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
         voice_id = "tC4vX6Z71D2o0o0HWGWe"  # Використовуємо отриманий Voice ID
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
 
-        audio_generator = elevenlabs_client.generate(text=text, voice=voice_id)
+        headers = {
+            "Content-Type": "application/json",
+            "xi-api-key": ELEVENLABS_API_KEY  # Тут має бути коректний API-ключ
+        }
+
+        data = {"text": text}
+        response = requests.post(url, json=data, headers=headers)
+
+        if response.status_code == 401:
+            print(f"[ERROR] Невірний API-ключ! Перевір API-ключ у ElevenLabs.")
+            return None
+
+        if response.status_code != 200:
+            print(f"[ERROR] Помилка генерації голосу: {response.status_code}, {response.text}")
+            return None
 
         audio_path = "response.mp3"
         with open(audio_path, "wb") as f:
-            for chunk in audio_generator:  # Читаємо потік даних
-                f.write(chunk)
+            f.write(response.content)
 
         print(f"[LOG] Голосове повідомлення збережено: {audio_path}")
         return audio_path
@@ -75,3 +91,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
