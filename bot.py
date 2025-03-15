@@ -111,6 +111,7 @@ async def handle_message(message: Message):
 
 async def main():
     await bot.set_webhook(WEBHOOK_URL)
+    print(f"[DEBUG] OPENAI_API_KEY: {OPENAI_API_KEY}")
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
 if __name__ == "__main__":
