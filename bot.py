@@ -20,7 +20,9 @@ app = FastAPI()
 def generate_voice(text):
     try:
         elevenlabs_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
-        audio_generator = elevenlabs_client.generate(text=text, voice="Rachel")
+        voice_id = "tC4vX6Z71D2o0o0HWGWe"  # Використовуємо отриманий Voice ID
+
+        audio_generator = elevenlabs_client.generate(text=text, voice=voice_id)
 
         audio_path = "response.mp3"
         with open(audio_path, "wb") as f:
