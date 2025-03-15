@@ -2,78 +2,63 @@ import os
 import logging
 import asyncio
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
-from aiogram.filters import Command
+from aiogram.types import Message
 from fastapi import FastAPI
 import uvicorn
 from gtts import gTTS
 
-# Завантажуємо змінні середовища
+# Логування
+logging.basicConfig(level=logging.INFO)
+
+# Токен бота
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-WEBHOOK_URL = "https://fenix-bot-3w3i.onrender.com/webhook"
+
+# Перевірка токена
+if not TELEGRAM_BOT_TOKEN:
+    raise ValueError("TELEGRAM_BOT_TOKEN не знайдено!")
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
 app = FastAPI()
 
-# Функція для генерації голосового повідомлення
-def generate_voice(text, lang="uk"):
+# Функція генерації голосу
+async def text_to_speech(text: str, chat_id: int):
     try:
-        tts = gTTS(text=text, lang=lang, slow=False)
-        audio_path = "response.mp3"
-        tts.save(audio_path)
-        print(f"[LOG] Голосове повідомлення збережено: {audio_path}")
-        return audio_path
+        tts = gTTS(text=text, lang='uk')
+        filename = f"voice_{chat_id}.mp3"
+        tts.save(filename)
+        return filename
     except Exception as e:
-        print(f"[ERROR] Помилка генерації голосу: {e}")
+        logging.error(f"Помилка генерації голосу: {e}")
         return None
 
-# Webhook
-@app.post("/webhook")
-async def webhook(update: dict):
-    try:
-        telegram_update = types.Update(**update)
-        await dp.feed_update(bot, telegram_update)
-        print("[LOG] Webhook отримав оновлення:", update)
-        return {"status": "ok"}
-    except Exception as e:
-        print(f"[ERROR] Webhook помилка: {e}")
-        return {"status": "error"}
+# Обробник команди /start
+@dp.message(commands=["start"])
+async def start_handler(message: Message):
+    await message.answer("🔥 Привіт! Надішли мені текст, і я його озвучу!")
 
-# Команда /start
-@dp.message(Command("start"))
-async def start_command(message: Message):
-    keyboard = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="Жіночий голос 🔊")]],
-        resize_keyboard=True,
-    )
-    await message.answer("🔥 Привіт! Надішли мені голосове повідомлення, і я відповім голосом!", reply_markup=keyboard)
-
-# Обробка голосових повідомлень
+# Обробник текстових повідомлень
 @dp.message()
-async def handle_voice(message: Message):
-    if message.voice:
-        file_info = await bot.get_file(message.voice.file_id)
-        file_path = file_info.file_path
-        downloaded_file = await bot.download_file(file_path)
-        local_audio = "input.ogg"
+async def text_handler(message: Message):
+    chat_id = message.chat.id
+    text = message.text
+    
+    voice_file = await text_to_speech(text, chat_id)
+    
+    if voice_file:
+        with open(voice_file, "rb") as audio:
+            await bot.send_voice(chat_id, audio)
+        os.remove(voice_file)
+    else:
+        await message.answer("❌ Помилка генерації голосу!")
 
-        with open(local_audio, "wb") as f:
-            f.write(downloaded_file.read())
+# Запуск бота
+async def start_bot():
+    await dp.start_polling(bot)
 
-        # Генеруємо голосову відповідь
-        audio_response = generate_voice("Привіт! Це тестова відповідь.")
-
-        if audio_response:
-            with open(audio_response, "rb") as audio:
-                await message.answer_voice(types.InputFile(audio_response))
-        else:
-            await message.answer("❌ Помилка генерації голосу!")
-
-# Головна функція
-async def main():
-    await bot.set_webhook(WEBHOOK_URL)
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+@app.on_event("startup")
+async def on_startup():
+    asyncio.create_task(start_bot())
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    uvicorn.run(app, host="0.0.0.0", port=8000)
