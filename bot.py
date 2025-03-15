@@ -1,47 +1,26 @@
 import os
 import logging
 import asyncio
-import random
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import Message
 from aiogram.filters import Command
 from fastapi import FastAPI
 import uvicorn
-from openai import OpenAI
 from elevenlabs import ElevenLabs
 
 # Завантажуємо змінні середовища (API-ключі)
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 WEBHOOK_URL = f"https://fenix-bot-3w3i.onrender.com/webhook"
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
 app = FastAPI()
 
-# Доступні голоси
-VOICES = {"male": "Adam", "female": "Bella"}
-
-# Функція для отримання відповіді від GPT
-async def get_gpt_response(text):
+def generate_voice(text):
     try:
-        client = OpenAI(api_key=OPENAI_API_KEY)
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": text}]
-        )
-        return response.choices[0].message['content']
-    except Exception as e:
-        print(f"[ERROR] GPT Помилка: {e}")
-        return "Я не зміг придумати відповідь 😔"
-
-# Генерація голосу
-async def generate_voice(text, gender="female"):
-    try:
-        voice = VOICES.get(gender, "Bella")
         elevenlabs_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
-        audio = elevenlabs_client.text_to_speech.convert(text=text, voice=voice)
+        audio = elevenlabs_client.text_to_speech.convert(text=text, voice="Віра")
 
         audio_path = "response.mp3"
         with open(audio_path, "wb") as f:
@@ -66,17 +45,7 @@ async def webhook(update: dict):
 
 @dp.message(Command("start"))
 async def start_command(message: Message):
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Жіночий", callback_data="voice_female"),
-         InlineKeyboardButton(text="Чоловічий", callback_data="voice_male")]
-    ])
-    await message.answer("🔥 Привіт! Надішли мені голосове повідомлення, і я відповім голосом!\n\nВибери тип голосу:", reply_markup=keyboard)
-
-@dp.callback_query()
-async def set_voice_preference(callback: types.CallbackQuery):
-    user_choice = callback.data.split("_")[1]
-    await callback.answer(f"Ви обрали {user_choice} голос!")
-    await callback.message.answer("Тепер відправте голосове повідомлення!")
+    await message.answer("🔥 Привіт! Надішли мені голосове повідомлення, і я відповім голосом!")
 
 @dp.message()
 async def handle_voice(message: Message):
@@ -88,11 +57,8 @@ async def handle_voice(message: Message):
         with open(local_audio, "wb") as f:
             f.write(downloaded_file.read())
 
-        # Отримуємо відповідь від GPT
-        gpt_response = await get_gpt_response("Що сказати у відповідь?")
-
         # Генеруємо голосову відповідь
-        audio_response = await generate_voice(gpt_response, gender="female")
+        audio_response = generate_voice("Привіт! Це тестова відповідь.")
 
         if audio_response:
             with open(audio_response, "rb") as audio:
