@@ -94,8 +94,11 @@ async def handle_voice(message: Message):
         audio_response = generate_voice("Привіт! Це тестова відповідь.", user_id)
 
         if audio_response:
-            with open(audio_response, "rb") as audio:
-                await message.answer_voice(audio)
+            from aiogram.types import FSInputFile
+
+voice = FSInputFile(audio_response)  # Передаємо файл як FSInputFile
+await message.answer_voice(voice)
+
         else:
             await message.answer("❌ Помилка генерації голосу!")
 
