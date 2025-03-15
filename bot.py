@@ -3,7 +3,6 @@ import logging
 import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import Message
-from aiogram.filters import Command  # Додано правильний імпорт
 from fastapi import FastAPI
 import uvicorn
 from gtts import gTTS
@@ -13,8 +12,8 @@ logging.basicConfig(level=logging.INFO)
 
 # Токен бота
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+WEBHOOK_URL = f"https://твій-домен.com/webhook"  # Замінити на реальний HTTPS-домен
 
-# Перевірка токена
 if not TELEGRAM_BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN не знайдено!")
 
@@ -22,10 +21,10 @@ bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
 app = FastAPI()
 
-# Функція генерації голосу
+# Генерація голосу
 async def text_to_speech(text: str, chat_id: int):
     try:
-        tts = gTTS(text=text, lang='uk')  # Жіночий голос
+        tts = gTTS(text=text, lang='uk')
         filename = f"voice_{chat_id}.mp3"
         tts.save(filename)
         return filename
@@ -34,10 +33,12 @@ async def text_to_speech(text: str, chat_id: int):
         return None
 
 # Обробник команди /start
+@dp.message()
 async def start_handler(message: Message):
     await message.answer("🔥 Привіт! Надішли мені текст, і я його озвучу!")
 
 # Обробник текстових повідомлень
+@dp.message()
 async def text_handler(message: Message):
     chat_id = message.chat.id
     text = message.text
@@ -51,18 +52,15 @@ async def text_handler(message: Message):
     else:
         await message.answer("❌ Помилка генерації голосу!")
 
-# Реєстрація хендлерів
-dp.message.register(start_handler, Command("start"))
-dp.message.register(text_handler)
-
-# Запуск бота
-async def start_bot():
-    await dp.start_polling(bot)
-
+# Встановлення вебхука
 @app.on_event("startup")
 async def on_startup():
-    asyncio.create_task(start_bot())
+    await bot.set_webhook(WEBHOOK_URL)
+
+@app.post("/webhook")
+async def webhook_handler(update: dict):
+    telegram_update = types.Update(**update)
+    await dp.feed_update(bot, telegram_update)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
-    
