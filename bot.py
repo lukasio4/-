@@ -1,21 +1,20 @@
 import os
 import logging
 import asyncio
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import Message
 from fastapi import FastAPI
 import uvicorn
 from gtts import gTTS
 
-# Логування
+# Налаштування логування
 logging.basicConfig(level=logging.INFO)
 
-# Токен бота
+# Отримуємо токен бота із змінних середовища
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-# Перевірка токена
 if not TELEGRAM_BOT_TOKEN:
-    raise ValueError("TELEGRAM_BOT_TOKEN не знайдено!")
+    raise ValueError("TELEGRAM_BOT_TOKEN не знайдено! Переконайтеся, що він доданий у .env або в середовище Render!")
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
@@ -29,22 +28,22 @@ async def text_to_speech(text: str, chat_id: int):
         tts.save(filename)
         return filename
     except Exception as e:
-        logging.error(f"Помилка генерації голосу: {e}")
+        logging.error(f"❌ Помилка генерації голосу: {e}")
         return None
 
 # Обробник команди /start
-dp.message.register(start_command, filters.Command("start"))  # без 'commands='
+@dp.message(F.text == "/start")
 async def start_handler(message: Message):
     await message.answer("🔥 Привіт! Надішли мені текст, і я його озвучу!")
 
 # Обробник текстових повідомлень
-@dp.message()
+@dp.message(F.text)
 async def text_handler(message: Message):
     chat_id = message.chat.id
     text = message.text
-    
+
     voice_file = await text_to_speech(text, chat_id)
-    
+
     if voice_file:
         with open(voice_file, "rb") as audio:
             await bot.send_voice(chat_id, audio)
@@ -52,7 +51,7 @@ async def text_handler(message: Message):
     else:
         await message.answer("❌ Помилка генерації голосу!")
 
-# Запуск бота
+# Функція запуску бота
 async def start_bot():
     await dp.start_polling(bot)
 
