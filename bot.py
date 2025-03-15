@@ -3,7 +3,7 @@ import logging
 import asyncio
 import requests
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import Message
+from aiogram.types import Message, FSInputFile
 from aiogram.filters import Command
 from fastapi import FastAPI
 import uvicorn
@@ -80,8 +80,8 @@ async def handle_voice(message: Message):
         audio_response = generate_voice("Привіт! Це тестова відповідь.")
 
         if audio_response:
-            with open(audio_response, "rb") as audio:
-                await message.answer_voice(audio)
+            audio_file = FSInputFile(audio_response)  # Коректний формат файлу
+            await message.answer_voice(audio_file)
         else:
             await message.answer("❌ Помилка генерації голосу!")
 
