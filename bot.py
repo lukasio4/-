@@ -2,7 +2,7 @@ import os
 import logging
 import asyncio
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import Message
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from fastapi import FastAPI
 import uvicorn
@@ -17,10 +17,22 @@ bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
 app = FastAPI()
 
-def generate_voice(text):
+# Голоси для вибору
+VOICES = {
+    "female": "Vira",  # Український жіночий голос
+    "male": "Oleksiy Nekrasov"  # Український чоловічий голос
+}
+
+# Словник користувачів і їх вибору голосу
+user_preferences = {}
+
+def generate_voice(text, user_id):
     try:
+        voice = user_preferences.get(user_id, "female")
+        voice_id = VOICES[voice]
+        
         elevenlabs_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
-        audio = elevenlabs_client.text_to_speech.convert(text=text, voice="Віра")
+        audio = elevenlabs_client.text_to_speech(text=text, voice_id=voice_id)
 
         audio_path = "response.mp3"
         with open(audio_path, "wb") as f:
@@ -45,10 +57,28 @@ async def webhook(update: dict):
 
 @dp.message(Command("start"))
 async def start_command(message: Message):
-    await message.answer("🔥 Привіт! Надішли мені голосове повідомлення, і я відповім голосом!")
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Жіночий", callback_data="voice_female"),
+             InlineKeyboardButton(text="Чоловічий", callback_data="voice_male")]
+        ]
+    )
+    await message.answer("\ud83d\udd25 Привіт! Надішли мені голосове повідомлення, і я відповім голосом!\n\nВибери тип голосу:", reply_markup=keyboard)
+
+@dp.callback_query()
+async def voice_selection(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    if callback.data == "voice_female":
+        user_preferences[user_id] = "female"
+        await callback.message.answer("\ud83d\udc69 Ви вибрали жіночий голос!")
+    elif callback.data == "voice_male":
+        user_preferences[user_id] = "male"
+        await callback.message.answer("\ud83d\udc68 Ви вибрали чоловічий голос!")
+    await callback.answer()
 
 @dp.message()
 async def handle_voice(message: Message):
+    user_id = message.from_user.id
     if message.voice:
         file_info = await bot.get_file(message.voice.file_id)
         file_path = file_info.file_path
@@ -58,7 +88,7 @@ async def handle_voice(message: Message):
             f.write(downloaded_file.read())
 
         # Генеруємо голосову відповідь
-        audio_response = generate_voice("Привіт! Це тестова відповідь.")
+        audio_response = generate_voice("Привіт! Це тестова відповідь.", user_id)
 
         if audio_response:
             with open(audio_response, "rb") as audio:
@@ -72,3 +102,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
