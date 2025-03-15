@@ -1,55 +1,56 @@
 import os
 import logging
 import asyncio
-import requests
+import random
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import Message
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from fastapi import FastAPI
 import uvicorn
+from openai import OpenAI
 from elevenlabs import ElevenLabs
 
-# Завантажуємо змінні середовища
+# Завантажуємо змінні середовища (API-ключі)
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-WEBHOOK_URL = "https://fenix-bot-3w3i.onrender.com/webhook"
+WEBHOOK_URL = f"https://fenix-bot-3w3i.onrender.com/webhook"
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
 app = FastAPI()
 
-# Логування
-logging.basicConfig(level=logging.INFO)
+# Доступні голоси
+VOICES = {"male": "Adam", "female": "Bella"}
 
-def get_gpt_response(prompt):
-    url = "https://api.openai.com/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {OPENAI_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    data = {
-        "model": "gpt-4",
-        "messages": [{"role": "user", "content": prompt}]
-    }
-    response = requests.post(url, json=data, headers=headers)
-    if response.status_code == 200:
-        return response.json()["choices"][0]["message"]["content"]
-    else:
-        logging.error(f"GPT помилка: {response.status_code}, {response.text}")
-        return "Вибач, я не зміг сформувати відповідь."
-
-def generate_voice(text, voice="Bella"):
+# Функція для отримання відповіді від GPT
+async def get_gpt_response(text):
     try:
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": text}]
+        )
+        return response.choices[0].message['content']
+    except Exception as e:
+        print(f"[ERROR] GPT Помилка: {e}")
+        return "Я не зміг придумати відповідь 😔"
+
+# Генерація голосу
+async def generate_voice(text, gender="female"):
+    try:
+        voice = VOICES.get(gender, "Bella")
         elevenlabs_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
         audio = elevenlabs_client.text_to_speech.convert(text=text, voice=voice)
+
         audio_path = "response.mp3"
         with open(audio_path, "wb") as f:
             f.write(audio)
-        logging.info(f"[LOG] Голосове повідомлення збережено: {audio_path}")
+
+        print(f"[LOG] Голосове повідомлення збережено: {audio_path}")
         return audio_path
     except Exception as e:
-        logging.error(f"[ERROR] Помилка генерації голосу: {e}")
+        print(f"[ERROR] Помилка генерації голосу: {e}")
         return None
 
 @app.post("/webhook")
@@ -57,14 +58,25 @@ async def webhook(update: dict):
     try:
         telegram_update = types.Update(**update)
         await dp.feed_update(bot, telegram_update)
+        print("[LOG] Webhook отримав оновлення:", update)
         return {"status": "ok"}
     except Exception as e:
-        logging.error(f"[ERROR] Webhook помилка: {e}")
+        print(f"[ERROR] Webhook помилка: {e}")
         return {"status": "error"}
 
 @dp.message(Command("start"))
 async def start_command(message: Message):
-    await message.answer("🔥 Привіт! Надішли мені голосове повідомлення, і я відповім голосом!")
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Жіночий", callback_data="voice_female"),
+         InlineKeyboardButton(text="Чоловічий", callback_data="voice_male")]
+    ])
+    await message.answer("🔥 Привіт! Надішли мені голосове повідомлення, і я відповім голосом!\n\nВибери тип голосу:", reply_markup=keyboard)
+
+@dp.callback_query()
+async def set_voice_preference(callback: types.CallbackQuery):
+    user_choice = callback.data.split("_")[1]
+    await callback.answer(f"Ви обрали {user_choice} голос!")
+    await callback.message.answer("Тепер відправте голосове повідомлення!")
 
 @dp.message()
 async def handle_voice(message: Message):
@@ -76,13 +88,11 @@ async def handle_voice(message: Message):
         with open(local_audio, "wb") as f:
             f.write(downloaded_file.read())
 
-        # Отримуємо відповідь GPT
-        gpt_response = get_gpt_response("Що відповісти на це голосове повідомлення?")
-        logging.info(f"[GPT] Відповідь: {gpt_response}")
+        # Отримуємо відповідь від GPT
+        gpt_response = await get_gpt_response("Що сказати у відповідь?")
 
-        # Вибір голосу (жіночий або чоловічий)
-        voice = "Bella" if "жіночий" in gpt_response else "Adam"
-        audio_response = generate_voice(gpt_response, voice)
+        # Генеруємо голосову відповідь
+        audio_response = await generate_voice(gpt_response, gender="female")
 
         if audio_response:
             with open(audio_response, "rb") as audio:
