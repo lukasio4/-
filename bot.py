@@ -44,7 +44,7 @@ async def generate_voice(text, user_id):
     voice = user_voice_preferences.get(user_id, "female")
     selected_voice = VOICES.get(voice, "Віра")
     
-    url = "https://api.elevenlabs.io/v1/text-to-speech"
+  url = "https://api.elevenlabs.io/v1/text-to-speech"
     headers = {"xi-api-key": ELEVENLABS_API_KEY, "Content-Type": "application/json"}
     payload = {"text": text, "voice": selected_voice}
     
