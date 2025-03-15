@@ -33,7 +33,7 @@ async def text_to_speech(text: str, chat_id: int):
         return None
 
 # Обробник команди /start
-@dp.message(commands=["start"])
+dp.message.register(start_command, filters.Command("start"))  # без 'commands='
 async def start_handler(message: Message):
     await message.answer("🔥 Привіт! Надішли мені текст, і я його озвучу!")
 
