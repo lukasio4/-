@@ -11,13 +11,13 @@ from gtts import gTTS
 # Логування
 logging.basicConfig(level=logging.INFO)
 
-# Отримуємо токен бота з середовища
+# Отримуємо токен бота
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 if not TELEGRAM_BOT_TOKEN:
-    raise ValueError("❌ TELEGRAM_BOT_TOKEN не знайдено! Переконайся, що змінна середовища задана.")
+    raise ValueError("❌ TELEGRAM_BOT_TOKEN не знайдено!")
 
-# Видаляємо вебхук перед стартом (бо Render не дає терміналу)
+# Видаляємо вебхук перед запуском (щоб уникнути конфліктів)
 def delete_webhook():
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/deleteWebhook"
     response = requests.post(url)
@@ -25,7 +25,7 @@ def delete_webhook():
 
 delete_webhook()  # Виконується один раз при старті
 
-# Створюємо об'єкти бота та диспетчера
+# Ініціалізація бота
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
 app = FastAPI()
@@ -62,7 +62,7 @@ async def text_handler(message: Message):
     else:
         await message.answer("❌ Помилка генерації голосу!")
 
-# Запуск бота
+# Запуск бота (Polling)
 async def start_bot():
     await dp.start_polling(bot)
 
