@@ -1,92 +1,96 @@
 import os
+import requests
 import logging
 import asyncio
-import json
-import requests
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.filters import Command
 from fastapi import FastAPI
 import uvicorn
 
-# Завантажуємо змінні середовища
+# Завантажуємо змінні середовища (API-ключі)
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-WEBHOOK_URL = "https://fenix-bot-3w3i.onrender.com/webhook"
+WEBHOOK_URL = f"https://fenix-bot-3w3i.onrender.com/webhook"
 
-# Ініціалізація бота та FastAPI
+# Voice IDs для вибору голосу
+VOICE_IDS = {
+    "Жіночий": "nCqaTnIbLdME87OuQaZY",  # Віра
+    "Чоловічий": "9Sj8ugvpK1DmcAXyvi3a"  # Олексій Некрасов
+}
+
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
 app = FastAPI()
 
-# Варіанти голосів
-VOICES = {"female": "Віра", "male": "Олексій Некрасов"}
-user_voice_preferences = {}
+# Логування
+logging.basicConfig(level=logging.INFO)
 
-# Функція виклику OpenAI GPT-3.5
-async def get_gpt_response(prompt):
-    url = "https://api.openai.com/v1/chat/completions"
-    headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
-    data = {
-        "model": "gpt-3.5-turbo",
-        "messages": [{"role": "system", "content": "Ти веселий AI, який жартує"},
-                     {"role": "user", "content": prompt}]
-    }
-    response = requests.post(url, headers=headers, json=data)
-    if response.status_code == 200:
-        return response.json()["choices"][0]["message"]["content"].strip()
-    else:
-        return "Не вдалося отримати відповідь GPT."
+# Словник для збереження вибору голосу
+user_voice_choice = {}
+
 
 # Функція генерації голосу
-async def generate_voice(text, user_id):
-    voice = user_voice_preferences.get(user_id, "female")
-    selected_voice = VOICES.get(voice, "Віра")
-    
-  url = "https://api.elevenlabs.io/v1/text-to-speech"
-    headers = {"xi-api-key": ELEVENLABS_API_KEY, "Content-Type": "application/json"}
-    payload = {"text": text, "voice": selected_voice}
-    
-    response = requests.post(url, headers=headers, json=payload)
-    if response.status_code == 200:
-        audio_path = "response.mp3"
-        with open(audio_path, "wb") as f:
-            f.write(response.content)
-        return audio_path
-    else:
+def generate_voice(text, voice_type="Жіночий"):
+    try:
+        voice_id = VOICE_IDS.get(voice_type, VOICE_IDS["Жіночий"])  # За замовчуванням жіночий голос
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+
+        headers = {
+            "xi-api-key": ELEVENLABS_API_KEY,
+            "Content-Type": "application/json"
+        }
+
+        data = {
+            "text": text,
+            "model_id": "eleven_multilingual_v1"
+        }
+
+        response = requests.post(url, json=data, headers=headers)
+
+        if response.status_code == 200:
+            audio_path = "response.mp3"
+            with open(audio_path, "wb") as f:
+                f.write(response.content)
+            return audio_path
+        else:
+            logging.error(f"[ERROR] Помилка генерації голосу: {response.text}")
+            return None
+    except Exception as e:
+        logging.error(f"[ERROR] Виникла помилка: {e}")
         return None
 
-# Webhook приймає оновлення від Telegram
+
 @app.post("/webhook")
 async def webhook(update: dict):
-    telegram_update = types.Update(**update)
-    await dp.feed_update(bot, telegram_update)
-    return {"status": "ok"}
+    try:
+        telegram_update = types.Update(**update)
+        await dp.feed_update(bot, telegram_update)
+        logging.info(f"[LOG] Webhook отримав оновлення: {update}")
+        return {"status": "ok"}
+    except Exception as e:
+        logging.error(f"[ERROR] Webhook помилка: {e}")
+        return {"status": "error"}
 
-# Обробник команди старт
+
 @dp.message(Command("start"))
 async def start_command(message: Message):
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Жіночий", callback_data="voice_female"),
-         InlineKeyboardButton(text="Чоловічий", callback_data="voice_male")]
-    ])
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="Жіночий"), KeyboardButton(text="Чоловічий")]
+        ],
+        resize_keyboard=True
+    )
     await message.answer("🔥 Привіт! Надішли мені голосове повідомлення, і я відповім голосом!\n\nВибери тип голосу:", reply_markup=keyboard)
 
-# Обробка натискання кнопки вибору голосу
-@dp.callback_query()
-async def voice_selection(callback: types.CallbackQuery):
-    if callback.data == "voice_female":
-        user_voice_preferences[callback.from_user.id] = "female"
-        await callback.message.answer("Ви вибрали жіночий голос.")
-    elif callback.data == "voice_male":
-        user_voice_preferences[callback.from_user.id] = "male"
-        await callback.message.answer("Ви вибрали чоловічий голос.")
-    await callback.answer()
 
-# Обробка голосових повідомлень
 @dp.message()
 async def handle_voice(message: Message):
+    if message.text in VOICE_IDS:
+        user_voice_choice[message.from_user.id] = message.text
+        await message.answer(f"✅ Голос змінено на {message.text}! Надішли мені голосове повідомлення.")
+        return
+
     if message.voice:
         file_info = await bot.get_file(message.voice.file_id)
         file_path = file_info.file_path
@@ -95,21 +99,23 @@ async def handle_voice(message: Message):
         with open(local_audio, "wb") as f:
             f.write(downloaded_file.read())
 
-        gpt_response = await get_gpt_response("Користувач надіслав голосове повідомлення. Відповідай йому весело.")
-        audio_response = await generate_voice(gpt_response, message.from_user.id)
+        # Отримуємо вибір голосу користувача або ставимо жіночий за замовчуванням
+        voice_type = user_voice_choice.get(message.from_user.id, "Жіночий")
+
+        # Генеруємо голосову відповідь
+        audio_response = generate_voice("Привіт! Це тестова відповідь.", voice_type)
 
         if audio_response:
             with open(audio_response, "rb") as audio:
-                await message.answer_voice(types.InputFile(audio))
+                await message.answer_voice(audio)
         else:
             await message.answer("❌ Помилка генерації голосу!")
 
-# Запуск
+
 async def main():
     await bot.set_webhook(WEBHOOK_URL)
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
+
 if __name__ == "__main__":
     asyncio.run(main())
-
-
